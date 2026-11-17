@@ -107,7 +107,7 @@
     </div>
   </div>
 
-  <!-- VIEW 4: VOTING (Supports 1v1 AND Round 3 All-Play Medal Voting) -->
+  <!-- VIEW 4: VOTING -->
   <div id="view-vote" class="card hidden">
     <h2 id="vote-title">Vote Your Favorite!</h2>
     <p id="vote-sub" class="sub"></p>
@@ -148,7 +148,7 @@
   const db = getDatabase(app);
 
   // ============================================================================
-  // 2. PLUGGABLE GAME MODE REGISTRY
+  // 2. PLUGGABLE GAME MODE REGISTRY (165+ Unfiltered 18+ Prompts)
   // ============================================================================
   const GAME_MODES = {
     full_quiplash: {
@@ -181,18 +181,122 @@
         "What dogs are actually saying when they bark at the mailman.",
         "The worst excuse for showing up two hours late.",
         "Something you shouldn't do while on mute in a voice call.",
-        "A rejected flavor of adult toothpaste."
+        "A rejected flavor of adult toothpaste.",
+        "The worst thing to hear from the stall next to you in a public restroom.",
+        "A red flag so big you can see it from space.",
+        "What the receipt after a regrettable 2 AM convenience store run looks like.",
+        "A terrible name for a strip club in a small town.",
+        "The real reason your ex blocked you on everything.",
+        "Something you should never put on a resume, even if it's impressive.",
+        "The worst possible song to play in the background while hooking up.",
+        "What your sleep paralysis demon complains to its therapist about.",
+        "A sign that the party has officially gone off the rails.",
+        "The worst advice you could possibly give a college freshman.",
+        "What the fine print on a Tinder bio actually means.",
+        "A terrible way to announce that you're pregnant.",
+        "Something a terrible therapist would say right after you trauma-dump.",
+        "The worst thing to accidentally project onto the living room TV via AirPlay.",
+        "An unhinged reason to call 911.",
+        "What aliens would conclude about humanity if they only looked at your phone.",
+        "A rejected safe word that causes way too much confusion.",
+        "The worst thing to say right after someone tells you 'I love you.'",
+        "A suspiciously specific item to ask for in the divorce settlement.",
+        "What the voices in your head argue about at 4 AM.",
+        "A terrible name for a budget plastic surgery clinic.",
+        "The worst possible person to wake up next to after a blackout night.",
+        "Something that should be illegal to do on public transit.",
+        "A completely unhinged thing to say during a job interview.",
+        "The worst gift to bring to a white elephant gift exchange.",
+        "What the bartender is secretly thinking when you order your usual.",
+        "A terrible slogan for an adult toy store.",
+        "The fastest way to get kicked out of an all-you-can-eat buffet.",
+        "Something you never want to hear the pilot say over the intercom.",
+        "A weird flex that actually just makes people concerned for you.",
+        "The worst thing to write on a wedding cake by mistake.",
+        "What happens in the VIP room of a Chuck E. Cheese.",
+        "A terrible excuse for why you have scratches on your back.",
+        "Something you should never say at a funeral.",
+        "The worst thing to discover your parents have a secret account for.",
+        "A rejected Crayola crayon color for adults.",
+        "What you have to do to get banned from a bowling alley for life.",
+        "The worst possible thing to say when handing someone a tip.",
+        "A terrible name for a men's cologne.",
+        "What really happens when someone says 'I'll be on in 5 minutes' on Discord.",
+        "The worst thing to find inside a piñata at an adult birthday party.",
+        "A bizarre side effect of a sketchy gas station pill.",
+        "Something you should never yell in a crowded movie theater.",
+        "The worst way to break up with someone over text.",
+        "What the devil makes you watch on repeat in the Mildly Annoying level of Hell.",
+        "A terrible theme for a high school prom.",
+        "The most suspicious thing to buy at Walmart at 3 AM alongside rope and a shovel.",
+        "What your Uber passenger rating would drop to if drivers could hear your thoughts.",
+        "A rejected Yankee Candle scent inspired by this friend group.",
+        "The worst thing to say to your partner's parents the first time you meet them.",
+        "Something a cult leader would use to recruit people in this Discord call.",
+        "The worst possible tattoo to get on impulse.",
+        "What a pigeon is thinking right before it ruins your windshield.",
+        "A terrible thing to say right after losing your virginity.",
+        "The most unhinged reason to start a GoFundMe.",
+        "What happens when you click 'Accept All Cookies' on a sketchy website.",
+        "A terrible superpower that only works when you're drunk.",
+        "The worst thing to hear your roommate doing through a thin wall.",
+        "Something you should never google on a school or work Wi-Fi network.",
+        "A rejected fortune cookie message for someone having a terrible week.",
+        "The worst way to start an apology video on YouTube.",
+        "What the guy who invented milk was actually trying to do.",
+        "A terrible name for a nightclub DJ.",
+        "The worst thing to accidentally leave behind at a hookup's apartment.",
+        "Something that immediately ruins a hot tub session.",
+        "The worst possible corporate team-building exercise.",
+        "What your bank account would say if it could talk to you.",
+        "A terrible slogan for a motel that charges by the hour.",
+        "The most questionable thing you've ever done for $20.",
+        "What the ghost haunting your bedroom judges you for the most.",
+        "A rejected rule for Fight Club.",
+        "The worst thing to say when someone shows you a picture of their ugly baby.",
+        "Something you should never admit during a game of Truth or Dare.",
+        "A terrible name for a boat owned by a divorced dad.",
+        "The worst possible substitute when you run out of toilet paper.",
+        "What the last two brain cells in your head are doing right now.",
+        "A red flag in someone's bedroom that tells you to run immediately.",
+        "The worst thing to say while being handcuffed.",
+        "What really goes into the mystery meat at a 24-hour diner.",
+        "A terrible reason to fake your own death.",
+        "The worst possible Wi-Fi network name for an apartment building.",
+        "Something you never want to find in your pocket the morning after a party.",
+        "The most awkward thing to make eye contact over."
       ],
       lastLashPrompts: [
         { type: "ACRO LASH", text: "Come up with a hilarious new meaning for the acronym: B.D.E." },
         { type: "ACRO LASH", text: "Come up with a hilarious new meaning for the acronym: D.T.F." },
         { type: "ACRO LASH", text: "Come up with a hilarious new meaning for the acronym: F.M.L." },
         { type: "ACRO LASH", text: "Come up with a hilarious new meaning for the acronym: G.O.A.T." },
+        { type: "ACRO LASH", text: "Come up with a hilarious new meaning for the acronym: N.S.F.W." },
+        { type: "ACRO LASH", text: "Come up with a hilarious new meaning for the acronym: A.F.K." },
+        { type: "ACRO LASH", text: "Come up with a hilarious new meaning for the acronym: S.I.M.P." },
+        { type: "ACRO LASH", text: "Come up with a hilarious new meaning for the acronym: F.U.B.A.R." },
+        { type: "ACRO LASH", text: "Come up with a hilarious new meaning for the acronym: T.M.I." },
+        { type: "ACRO LASH", text: "Come up with a hilarious new meaning for the acronym: Y.O.L.O." },
         { type: "COMIC LASH", text: "[Scene: A doctor staring at an X-ray in horror] Doctor's speech bubble: 'Well, the good news is ______.'" },
         { type: "COMIC LASH", text: "[Scene: Aliens abducting someone from this Discord call and immediately throwing them back] Alien's speech bubble: '______'" },
+        { type: "COMIC LASH", text: "[Scene: St. Peter checking a giant book at the Pearly Gates and sighing] St. Peter's speech bubble: 'Look, you're only here because ______.'" },
+        { type: "COMIC LASH", text: "[Scene: A detective staring at a bizarre crime scene chalk outline] Detective's speech bubble: 'My god... the killer used ______.'" },
+        { type: "COMIC LASH", text: "[Scene: Two demons watching a live feed of our Discord server] Demon's speech bubble: 'Write that down! ______'" },
+        { type: "COMIC LASH", text: "[Scene: A time traveler bursting into your room in a panic] Time Traveler's speech bubble: 'Whatever you do tonight, DO NOT ______!'" },
+        { type: "COMIC LASH", text: "[Scene: A genie looking disgusted after reading your wish] Genie's speech bubble: 'Seriously? You want ______?!'" },
         { type: "WORD LASH", text: "Invent a brand-new 18+ slang term and define what it means:" },
+        { type: "WORD LASH", text: "Name the 8th Deadly Sin that applies specifically to people in this call:" },
+        { type: "WORD LASH", text: "Give a clinical-sounding medical name for the fear of touching grass:" },
+        { type: "WORD LASH", text: "Create a title for a self-help book written by the most chaotic person in this lobby:" },
+        { type: "WORD LASH", text: "Invent a new cocktail named after this friend group and list its 3 worst ingredients:" },
         { type: "FINAL LASH", text: "If our entire friend group went to prison together, what was the crime?" },
-        { type: "FINAL LASH", text: "The absolute worst thing to say right after an awkward silence in Discord." }
+        { type: "FINAL LASH", text: "The absolute worst thing to say right after an awkward silence in Discord." },
+        { type: "FINAL LASH", text: "Write the one-sentence warning label that should legally appear before joining this voice chat:" },
+        { type: "FINAL LASH", text: "If a billionaire offered you $1,000,000 right now, what is the bare minimum you wouldn't do for it?" },
+        { type: "FINAL LASH", text: "What will be written on the plaque where this friend group last hung out?" },
+        { type: "FINAL LASH", text: "The most unhinged lie you could tell a stranger at a party and convince them is 100% true:" },
+        { type: "FINAL LASH", text: "If your browser history was read aloud in court tomorrow, what would your opening defense statement be?" },
+        { type: "FINAL LASH", text: "The worst possible final words to say right before getting ejected into space:" }
       ]
     },
     speed_roast: {
@@ -210,11 +314,27 @@
         "The most likely way our friend group ends up on the local news.",
         "What someone in this lobby would trade their soul for.",
         "The biggest red flag of the person who created this room.",
-        "What the quietest person in the voice chat is secretly plotting."
+        "What the quietest person in the voice chat is secretly plotting.",
+        "Which person in this lobby would die first in a zombie apocalypse, and how?",
+        "The worst dating advice someone in this call has unironically given.",
+        "What the loudest person in this voice channel smells like right now.",
+        "If this Discord server had a smell, what would it be?",
+        "The most embarrassing reason someone in this lobby has cried.",
+        "What the person at the top of the leaderboard is compensating for.",
+        "The real reason half this lobby is still awake past midnight.",
+        "A crime that at least two people in this call would help cover up.",
+        "What you'd find under the bed of the most suspicious person in this room.",
+        "The worst excuse someone in this group has used to bail on plans.",
+        "If we were all on a reality TV show, who gets voted off Episode 1 and why?",
+        "The most delusional take someone in this friend group genuinely believes.",
+        "What the FBI file on our Discord server is titled."
       ],
       lastLashPrompts: [
         { type: "ROAST LASH", text: "Describe the future of this friend group in 10 years using brutal honesty:" },
-        { type: "ROAST LASH", text: "Write the brutally honest bio for our Discord server:" }
+        { type: "ROAST LASH", text: "Write the brutally honest bio for our Discord server:" },
+        { type: "ROAST LASH", text: "If aliens studied this exact voice call to understand humanity, what would their final report say?" },
+        { type: "ROAST LASH", text: "Write a 1-star Yelp review for hanging out with this friend group:" },
+        { type: "ROAST LASH", text: "What is the collective IQ of this lobby right now, and who is dragging down the average?" }
       ]
     }
   };
@@ -269,6 +389,8 @@
       round: 1,
       matchIndex: 0,
       deadline: 0,
+      usedPrompts: [],
+      usedLastLash: [],
       players: { [myId]: { name, score: 0 } }
     });
     subscribeToRoom(code);
@@ -331,7 +453,7 @@
   }
 
   // ============================================================================
-  // 6. GAME LOOP & MATCHMAKING (1v1 Rounds + Round 3 All-Play Last Lash)
+  // 6. GAME LOOP & NO-REPEAT MATCHMAKING
   // ============================================================================
   async function startRound(roundNum) {
     const modeCfg = GAME_MODES[roomData.mode];
@@ -339,10 +461,19 @@
     const pIds = Object.keys(roomData.players || {}).sort(() => Math.random() - 0.5);
     const matchups = {};
 
+    let updatedUsedPrompts = Array.isArray(roomData.usedPrompts) ? [...roomData.usedPrompts] : [];
+    let updatedUsedLastLash = Array.isArray(roomData.usedLastLash) ? [...roomData.usedLastLash] : [];
+
     if (isLastLash) {
-      // ROUND 3: ALL-PLAY LAST LASH (Everyone gets the exact same prompt)
-      const lashPool = modeCfg.lastLashPrompts;
+      // ROUND 3: Pick an unseen Last Lash prompt
+      let lashPool = modeCfg.lastLashPrompts.filter(item => !updatedUsedLastLash.includes(item.text));
+      if (lashPool.length === 0) {
+        lashPool = [...modeCfg.lastLashPrompts];
+        updatedUsedLastLash = [];
+      }
       const chosen = lashPool[Math.floor(Math.random() * lashPool.length)];
+      updatedUsedLastLash.push(chosen.text);
+
       matchups["m_0"] = {
         isLastLash: true,
         lashType: chosen.type,
@@ -351,16 +482,25 @@
         votes: {}
       };
     } else {
-      // ROUNDS 1 & 2: Circular 1v1 Pairing (Everyone gets 2 unique prompts)
+      // ROUNDS 1 & 2: Filter out already-used prompts so players never see repeats
       const customRaw = document.getElementById("inp-custom-prompts").value.trim();
       const customList = customRaw ? customRaw.split("\n").map(s => s.trim()).filter(Boolean) : [];
-      const pool = [...modeCfg.prompts, ...customList].sort(() => Math.random() - 0.5);
+      const fullDeck = [...modeCfg.prompts, ...customList];
+
+      let availablePool = fullDeck.filter(p => !updatedUsedPrompts.includes(p)).sort(() => Math.random() - 0.5);
+      if (availablePool.length < pIds.length) {
+        // Reshuffle deck if we finally ran through all 100+ prompts
+        availablePool = [...fullDeck].sort(() => Math.random() - 0.5);
+        updatedUsedPrompts = [];
+      }
 
       pIds.forEach((pA, i) => {
         const pB = pIds[(i + 1) % pIds.length];
+        const chosenPrompt = availablePool[i % availablePool.length];
+        updatedUsedPrompts.push(chosenPrompt);
         matchups[`m_${i}`] = {
           isLastLash: false,
-          prompt: pool[i % pool.length],
+          prompt: chosenPrompt,
           pA, pB,
           ansA: "", ansB: "",
           votes: {}
@@ -373,10 +513,11 @@
       round: roundNum,
       matchIndex: 0,
       matchups,
+      usedPrompts: updatedUsedPrompts,
+      usedLastLash: updatedUsedLastLash,
       deadline: Date.now() + modeCfg.promptTime * 1000
     };
 
-    // Reset scores to 0 when starting Round 1
     if (roundNum === 1) {
       pIds.forEach(id => { updates[`players/${id}/score`] = 0; });
     }
@@ -436,7 +577,6 @@
         loadMyNextPrompt();
       }
 
-      // Live Submission Progress Counter
       let doneCount = 0;
       if (isLastLash) {
         doneCount = Object.keys(roomData.matchups["m_0"].answers || {}).length;
@@ -461,7 +601,6 @@
       document.getElementById("vote-prompt-text").textContent = m.prompt;
 
       if (m.isLastLash) {
-        // ROUND 3 LAST LASH: Vote for up to 3 answers (Gold, Silver, Bronze)
         const maxPicks = Math.min(3, Math.max(1, totalPlayers - 1));
         document.getElementById("vote-title").textContent = "Last Lash Voting!";
         document.getElementById("vote-sub").textContent = `Tap your Top ${maxPicks} favorite answers in order (🥇 Gold, 🥈 Silver, 🥉 Bronze)!`;
@@ -479,7 +618,7 @@
         if (canVote) {
           btnContainer.innerHTML = "";
           Object.entries(m.answers || {}).forEach(([authorId, ansText]) => {
-            if (authorId === myId) return; // Can't vote for yourself!
+            if (authorId === myId) return;
             const btn = document.createElement("button");
             btn.className = "vote-btn";
             const pickIdx = myLastLashPicks.indexOf(authorId);
@@ -508,7 +647,6 @@
           if (currentVotes >= totalPlayers) scoreAndRevealMatchup(currKey, m, modeCfg);
         }
       } else {
-        // ROUNDS 1 & 2: 1v1 Head-to-Head Voting
         document.getElementById("vote-title").textContent = "Vote Your Favorite!";
         document.getElementById("vote-sub").textContent = `Matchup ${roomData.matchIndex + 1} of ${mKeys.length}`;
         lastStateKey = stateKey;
@@ -566,7 +704,6 @@
 
       if (roomData.state !== "GAMEOVER") {
         if (m.isLastLash) {
-          // Reveal all Last Lash answers sorted by points earned
           const ptsBreakdown = {};
           const voterBadges = {};
           Object.keys(roomData.players || {}).forEach(pid => { ptsBreakdown[pid] = 0; voterBadges[pid] = []; });
@@ -598,7 +735,6 @@
               `;
             });
         } else {
-          // 1v1 Reveal with Voter Names & Quiplash Sweep Callout
           const voteEntries = Object.entries(m.votes || {});
           const votersA = voteEntries.filter(([_, v]) => v === "A").map(([vid]) => roomData.players[vid]?.name);
           const votersB = voteEntries.filter(([_, v]) => v === "B").map(([vid]) => roomData.players[vid]?.name);
@@ -626,7 +762,6 @@
         }
       }
 
-      // Render Sorted Leaderboard
       const lb = document.getElementById("leaderboard-list");
       lb.innerHTML = "";
       Object.values(roomData.players || {})
@@ -690,7 +825,6 @@
     const currKey = mKeys[idx];
     const m = roomData.matchups[currKey];
 
-    // If a 1v1 matchup has at least one forfeit (blank answer), auto-score without voting
     if (!m.isLastLash && (!m.ansA || !m.ansB)) {
       await scoreAndRevealMatchup(currKey, m, modeCfg);
       return;
@@ -727,7 +861,6 @@
       const mult = roomData.round;
       let ptsA = 0, ptsB = 0;
 
-      // Handle Forfeits vs Normal Votes
       if (m.ansA && !m.ansB) {
         ptsA = modeCfg.basePoints * 2 * mult;
       } else if (m.ansB && !m.ansA) {
@@ -767,7 +900,6 @@
     if (roomData.state === "PROMPT") {
       const m0 = roomData.matchups?.["m_0"];
       if (m0?.isLastLash) {
-        // Fill in default answer for anyone who didn't submit in Last Lash
         const updates = {};
         Object.keys(roomData.players || {}).forEach(pid => {
           if (!m0.answers?.[pid]) updates[`matchups/m_0/answers/${pid}`] = "(Panicked & wrote nothing)";
