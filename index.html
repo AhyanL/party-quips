@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Unfiltered Quips</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --accent: #8b5cf6;
+      --accent-hover: #7c3aed;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --success: #10b981;
+      --danger: #ef4444;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
+    body { background: var(--bg); color: var(--text); min-height: 100vh; display: flex; justify-content: center; padding: 16px; }
+    #app { width: 100%; max-width: 480px; display: flex; flex-direction: column; gap: 16px; }
+    .card { background: var(--card); border-radius: 16px; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.4); }
+    h1 { font-size: 1.75rem; text-align: center; color: #c4b5fd; margin-bottom: 4px; }
+    h2 { font-size: 1.25rem; margin-bottom: 12px; text-align: center; }
+    p.sub { text-align: center; color: var(--muted); font-size: 0.9rem; margin-bottom: 16px; }
+    input, select, textarea, button {
+      width: 100%; padding: 14px; border-radius: 10px; border: 1px solid #334155;
+      background: #0f172a; color: var(--text); font-size: 1rem; margin-bottom: 12px;
+    }
+    textarea { resize: none; height: 90px; }
+    button {
+      background: var(--accent); border: none; font-weight: 700; cursor: pointer;
+      transition: background 0.15s, transform 0.1s; margin-bottom: 8px;
+    }
+    button:active { transform: scale(0.98); }
+    button.secondary { background: #334155; }
+    button.vote-btn { background: #1e1b4b; border: 2px solid var(--accent); padding: 18px; font-size: 1.1rem; word-wrap: break-word; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .hidden { display: none !important; }
+    .topbar { display: flex; justify-content: space-between; align-items: center; background: #1e293b; padding: 10px 16px; border-radius: 12px; font-size: 0.9rem; }
+    .badge { background: var(--accent); padding: 4px 10px; border-radius: 999px; font-weight: 700; }
+    .timer { font-size: 1.2rem; font-weight: 800; color: #f43f5e; }
+    .player-list { list-style: none; display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+    .player-pill { background: #0f172a; padding: 8px 12px; border-radius: 8px; font-size: 0.9rem; border: 1px solid #334155; }
+    .leaderboard-row { display: flex; justify-content: space-between; padding: 10px 12px; border-bottom: 1px solid #334155; }
+    .prompt-box { background: #0f172a; border-left: 4px solid var(--accent); padding: 14px; border-radius: 8px; margin-bottom: 16px; font-size: 1.1rem; font-weight: 600; }
+    .result-card { background: #0f172a; padding: 14px; border-radius: 10px; margin-bottom: 12px; border: 1px solid #334155; }
+    .quips-sweep { color: #fbbf24; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; display: block; margin-top: 4px; }
+  </style>
+</head>
+<body>
+<div id="app">
+  <!-- Top Status Bar (Visible Once In a Room) -->
+  <div id="topbar" class="topbar hidden">
+    <div>Room: <span id="ui-room-code" class="badge">----</span></div>
+    <div id="ui-round-info">Lobby</div>
+    <div id="ui-timer" class="timer">--</div>
+  </div>
+
+  <!-- VIEW 1: HOME / JOIN -->
+  <div id="view-home" class="card">
+    <h1>Unfiltered Quips</h1>
+    <p class="sub">18+ All-In-One Mobile Party Game</p>
+    <input id="inp-name" type="text" placeholder="Your Nickname" maxlength="16" />
+    <input id="inp-code" type="text" placeholder="4-Letter Room Code (to join)" maxlength="4" style="text-transform:uppercase" />
+    <button id="btn-join">Join Existing Room</button>
+    <hr style="border: 0; border-top: 1px solid #334155; margin: 16px 0;" />
+    <label style="font-size:0.85rem; color:var(--muted); display:block; margin-bottom:6px;">Game Mode (Host):</label>
+    <select id="sel-mode"></select>
+    <button id="btn-create" class="secondary">Create New Room</button>
+  </div>
+
+  <!-- VIEW 2: LOBBY -->
+  <div id="view-lobby" class="card hidden">
+    <h2>Waiting for Players...</h2>
+    <p class="sub">Share the 4-letter Room Code on Discord! (Min 3 players)</p>
+    <ul id="lobby-players" class="player-list"></ul>
+    <div id="host-lobby-controls" class="hidden">
+      <textarea id="inp-custom-prompts" placeholder="Optional: Paste custom prompts here (one per line) to mix into the deck!"></textarea>
+      <button id="btn-start">Start Game</button>
+    </div>
+    <p id="guest-lobby-msg" class="sub">Waiting for host to start the game...</p>
+  </div>
+
+  <!-- VIEW 3: ANSWERING PROMPTS -->
+  <div id="view-prompt" class="card hidden">
+    <h2>Write Your Answers</h2>
+    <div id="prompt-form">
+      <div id="curr-prompt-text" class="prompt-box"></div>
+      <input id="inp-answer" type="text" placeholder="Type your unfiltered answer..." maxlength="90" />
+      <button id="btn-submit-answer">Submit Answer</button>
+    </div>
+    <div id="prompt-waiting" class="hidden">
+      <p class="sub">All answers locked in! Waiting for slowpokes...</p>
+    </div>
+  </div>
+
+  <!-- VIEW 4: HEAD-TO-HEAD VOTING -->
+  <div id="view-vote" class="card hidden">
+    <h2>Vote Your Favorite!</h2>
+    <div id="vote-prompt-text" class="prompt-box"></div>
+    <div id="vote-buttons">
+      <button id="btn-vote-a" class="vote-btn"></button>
+      <button id="btn-vote-b" class="vote-btn"></button>
+    </div>
+    <p id="vote-status" class="sub hidden"></p>
+  </div>
+
+  <!-- VIEW 5: MATCHUP REVEAL & ROUND SCORES -->
+  <div id="view-reveal" class="card hidden">
+    <h2>Matchup Results</h2>
+    <div id="reveal-prompt-text" class="prompt-box"></div>
+    <div id="reveal-results"></div>
+    <h2 style="margin-top:20px;">Live Leaderboard</h2>
+    <div id="leaderboard-list"></div>
+    <button id="btn-next-step" class="hidden" style="margin-top:16px;">Next</button>
+  </div>
+</div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js";
+  import { getDatabase, ref, set, get, update, onValue } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-database.js";
+
+  // ============================================================================
+  // 1. PASTE YOUR FIREBASE CONFIG HERE
+  // ============================================================================
+  const firebaseConfig = {
+    apiKey: "PASTE_YOUR_API_KEY",
+    authDomain: "PASTE_YOUR_PROJECT.firebaseapp.com",
+    databaseURL: "https://PASTE_YOUR_PROJECT-default-rtdb.firebaseio.com",
+    projectId: "PASTE_YOUR_PROJECT",
+    storageBucket: "PASTE_YOUR_PROJECT.appspot.com",
+    messagingSenderId: "00000000000",
+    appId: "1:00000000000:web:00000000000"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+
+  // ============================================================================
+  // 2. PLUGGABLE GAME MODE REGISTRY (Easy to add new modes later!)
+  // ============================================================================
+  const GAME_MODES = {
+    classic_quips: {
+      name: "Classic Quiplash (3 Rounds)",
+      totalRounds: 3,
+      promptTime: 60,
+      voteTime: 25,
+      basePoints: 100,
+      sweepBonus: 250,
+      prompts: [
+        "The worst thing to whisper during a group hug.",
+        "What's really inside the mysterious Tupperware at the back of the fridge?",
+        "The most embarrassing reason to get kicked out of our Discord server.",
+        "A rejected name for an adult dating app.",
+        "What happens if you drink three energy drinks at 3 AM?",
+        "The worst possible text to accidentally send to your family group chat.",
+        "A terrible slogan for a divorce lawyer.",
+        "What the FBI agent watching your webcam is thinking right now.",
+        "The worst icebreaker question on a first date.",
+        "A clear sign that your Uber driver has lost their mind.",
+        "Something you should never say to a cop after getting pulled over.",
+        "The real reason dinosaurs went extinct.",
+        "What's the fastest way to ruin a Thanksgiving dinner?",
+        "An unspoken rule of our friend group.",
+        "The title of a movie about your worst situationship."
+      ]
+    },
+    // Future Mode Example: Add new keys here and they automatically appear in the UI!
+    speed_roast: {
+      name: "Speed Roast (Fast Timers, 2x Final)",
+      totalRounds: 2,
+      promptTime: 35,
+      voteTime: 15,
+      basePoints: 150,
+      sweepBonus: 400,
+      prompts: [
+        "If someone in this call was arrested tonight, what did they do?",
+        "The most questionable search history item of the person above you in Discord.",
+        "Why shouldn't anyone trust the host of this lobby with $100?",
+        "The most likely way our friend group ends up on the local news.",
+        "What someone in this lobby would trade their soul for."
+      ]
+    }
+  };
+
+  // Populate Mode Select Dropdown
+  const selMode = document.getElementById("sel-mode");
+  Object.entries(GAME_MODES).forEach(([key, cfg]) => {
+    const opt = document.createElement("option");
+    opt.value = key;
+    opt.textContent = cfg.name;
+    selMode.appendChild(opt);
+  });
+
+  // ============================================================================
+  // 3. LOCAL PLAYER & ROOM STATE
+  // ============================================================================
+  let myId = localStorage.getItem("quips_uid") || "p_" + Math.random().toString(36).substring(2, 9);
+  localStorage.setItem("quips_uid", myId);
+
+  let currentRoom = null;
+  let roomData = null;
+  let myPromptQueue = [];
+  let myPromptIdx = 0;
+  let timerInterval = null;
+
+  const views = ["view-home", "view-lobby", "view-prompt", "view-vote", "view-reveal"];
+  function showView(id) {
+    views.forEach(v => document.getElementById(v).classList.toggle("hidden", v !== id));
+    document.getElementById("topbar").classList.toggle("hidden", id === "view-home");
+  }
+
+  function genCode() {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+    return Array.from({ length: 4 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+  }
+
+  // ============================================================================
+  // 4. CREATE OR JOIN ROOM
+  // ============================================================================
+  document.getElementById("btn-create").onclick = async () => {
+    const name = document.getElementById("inp-name").value.trim();
+    if (!name) return alert("Enter a nickname first!");
+    const code = genCode();
+    const mode = selMode.value;
+
+    await set(ref(db, `rooms/${code}`), {
+      host: myId,
+      mode: mode,
+      state: "LOBBY",
+      round: 1,
+      matchIndex: 0,
+      deadline: 0,
+      players: { [myId]: { name, score: 0 } }
+    });
+    subscribeToRoom(code);
+  };
+
+  document.getElementById("btn-join").onclick = async () => {
+    const name = document.getElementById("inp-name").value.trim();
+    const code = document.getElementById("inp-code").value.trim().toUpperCase();
+    if (!name || code.length !== 4) return alert("Enter nickname and 4-letter room code!");
+
+    const snap = await get(ref(db, `rooms/${code}`));
+    if (!snap.exists()) return alert("Room not found!");
+
+    await update(ref(db, `rooms/${code}/players/${myId}`), { name, score: snap.val().players?.[myId]?.score || 0 });
+    subscribeToRoom(code);
+  };
+
+  // ============================================================================
+  // 5. REALTIME STATE LISTENER
+  // ============================================================================
+  let lastStateKey = "";
+
+  function subscribeToRoom(code) {
+    currentRoom = code;
+    document.getElementById("ui-room-code").textContent = code;
+
+    onValue(ref(db, `rooms/${code}`), (snap) => {
+      if (!snap.exists()) return;
+      roomData = snap.val();
+      const modeCfg = GAME_MODES[roomData.mode] || GAME_MODES.classic_quips;
+      const isHost = roomData.host === myId;
+
+      document.getElementById("ui-round-info").textContent =
+        roomData.state === "LOBBY" ? "Lobby" : `Round ${roomData.round}/${modeCfg.totalRounds}`;
+
+      syncTimer(roomData.deadline, isHost);
+      renderCurrentState(isHost, modeCfg);
+    });
+  }
+
+  function syncTimer(deadline, isHost) {
+    clearInterval(timerInterval);
+    const el = document.getElementById("ui-timer");
+    if (!deadline) { el.textContent = "--"; return; }
+
+    timerInterval = setInterval(() => {
+      const rem = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+      el.textContent = rem + "s";
+      if (rem <= 0) {
+        clearInterval(timerInterval);
+        if (isHost) handleTimeout();
+      }
+    }, 300);
+  }
+
+  // ============================================================================
+  // 6. GAME LOOP & MATCHMAKING LOGIC
+  // ============================================================================
+  async function startRound(roundNum) {
+    const modeCfg = GAME_MODES[roomData.mode];
+    const customRaw = document.getElementById("inp-custom-prompts").value.trim();
+    const customList = customRaw ? customRaw.split("\n").map(s => s.trim()).filter(Boolean) : [];
+    const pool = [...modeCfg.prompts, ...customList].sort(() => Math.random() - 0.5);
+
+    const pIds = Object.keys(roomData.players || {}).sort(() => Math.random() - 0.5);
+    const matchups = {};
+
+    // Circular pairing: each player faces pIds[i+1] and pIds[i-1], receiving 2 unique prompts
+    pIds.forEach((pA, i) => {
+      const pB = pIds[(i + 1) % pIds.length];
+      matchups[`m_${i}`] = {
+        prompt: pool[i % pool.length],
+        pA, pB,
+        ansA: "", ansB: "",
+        votes: {}
+      };
+    });
+
+    await update(ref(db, `rooms/${currentRoom}`), {
+      state: "PROMPT",
+      round: roundNum,
+      matchIndex: 0,
+      matchups,
+      deadline: Date.now() + modeCfg.promptTime * 1000
+    });
+  }
+
+  document.getElementById("btn-start").onclick = () => {
+    const pCount = Object.keys(roomData.players || {}).length;
+    if (pCount < 3) return alert("Need at least 3 players so non-competing players can vote!");
+    startRound(1);
+  };
+
+  function renderCurrentState(isHost, modeCfg) {
+    const stateKey = `${roomData.state}_${roomData.round}_${roomData.matchIndex}`;
+
+    // --- LOBBY ---
+    if (roomData.state === "LOBBY") {
+      showView("view-lobby");
+      const ul = document.getElementById("lobby-players");
+      ul.innerHTML = "";
+      Object.values(roomData.players || {}).forEach(p => {
+        const li = document.createElement("li");
+        li.className = "player-pill";
+        li.textContent = p.name;
+        ul.appendChild(li);
+      });
+      document.getElementById("host-lobby-controls").classList.toggle("hidden", !isHost);
+      document.getElementById("guest-lobby-msg").classList.toggle("hidden", isHost);
+    }
+
+    // --- PROMPT ANSWERING ---
+    else if (roomData.state === "PROMPT") {
+      showView("view-prompt");
+      const mList = Object.entries(roomData.matchups || {});
+
+      if (lastStateKey !== stateKey) {
+        myPromptQueue = mList.filter(([_, m]) =>
+          (m.pA === myId && !m.ansA) || (m.pB === myId && !m.ansB)
+        );
+        myPromptIdx = 0;
+        lastStateKey = stateKey;
+        loadMyNextPrompt();
+      }
+
+      // Host auto-advances when all answers are submitted
+      if (isHost) {
+        const allDone = mList.every(([_, m]) => m.ansA && m.ansB);
+        if (allDone) startVotingPhase(0);
+      }
+    }
+
+    // --- HEAD-TO-HEAD VOTING ---
+    else if (roomData.state === "VOTE") {
+      showView("view-vote");
+      const mKeys = Object.keys(roomData.matchups || {});
+      const currKey = mKeys[roomData.matchIndex];
+      const m = roomData.matchups[currKey];
+
+      document.getElementById("vote-prompt-text").textContent = m.prompt;
+      const isCompetitor = (m.pA === myId || m.pB === myId);
+      const myVote = m.votes?.[myId];
+
+      const btnA = document.getElementById("btn-vote-a");
+      const btnB = document.getElementById("btn-vote-b");
+      const status = document.getElementById("vote-status");
+
+      btnA.textContent = m.ansA || "(No Answer)";
+      btnB.textContent = m.ansB || "(No Answer)";
+
+      const canVote = !isCompetitor && !myVote;
+      document.getElementById("vote-buttons").classList.toggle("hidden", !canVote);
+      status.classList.toggle("hidden", canVote);
+
+      if (isCompetitor) status.textContent = "This is your matchup! Sit tight while others vote.";
+      else if (myVote) status.textContent = "Vote locked in! Waiting on other voters...";
+
+      btnA.onclick = () => set(ref(db, `rooms/${currentRoom}/matchups/${currKey}/votes/${myId}`), "A");
+      btnB.onclick = () => set(ref(db, `rooms/${currentRoom}/matchups/${currKey}/votes/${myId}`), "B");
+
+      if (isHost) {
+        const eligibleVoters = Object.keys(roomData.players || {}).length - 2;
+        const currentVotes = Object.keys(m.votes || {}).length;
+        if (currentVotes >= eligibleVoters) scoreAndRevealMatchup(currKey, m, modeCfg);
+      }
+    }
+
+    // --- REVEAL & LEADERBOARD ---
+    else if (roomData.state === "REVEAL" || roomData.state === "GAMEOVER") {
+      showView("view-reveal");
+      const mKeys = Object.keys(roomData.matchups || {});
+      const m = roomData.matchups[mKeys[roomData.matchIndex]];
+
+      document.getElementById("reveal-prompt-text").textContent =
+        roomData.state === "GAMEOVER" ? "FINAL STANDINGS!" : m.prompt;
+
+      const resDiv = document.getElementById("reveal-results");
+      if (roomData.state === "GAMEOVER") {
+        resDiv.innerHTML = "";
+      } else {
+        const votes = Object.values(m.votes || {});
+        const vA = votes.filter(v => v === "A").length;
+        const vB = votes.filter(v => v === "B").length;
+        const nameA = roomData.players[m.pA]?.name || "Player A";
+        const nameB = roomData.players[m.pB]?.name || "Player B";
+        const sweepA = vA > 0 && vB === 0 ? `<span class="quips-sweep">⚡ QUIPLASH SWEEP! (+${modeCfg.sweepBonus})</span>` : "";
+        const sweepB = vB > 0 && vA === 0 ? `<span class="quips-sweep">⚡ QUIPLASH SWEEP! (+${modeCfg.sweepBonus})</span>` : "";
+
+        resDiv.innerHTML = `
+          <div class="result-card">
+            <strong>"${m.ansA || "(Blank)"}"</strong> — <em>${nameA}</em> (${vA} votes) ${sweepA}
+          </div>
+          <div class="result-card">
+            <strong>"${m.ansB || "(Blank)"}"</strong> — <em>${nameB}</em> (${vB} votes) ${sweepB}
+          </div>
+        `;
+      }
+
+      // Render Sorted Leaderboard
+      const lb = document.getElementById("leaderboard-list");
+      lb.innerHTML = "";
+      Object.values(roomData.players || {})
+        .sort((a, b) => b.score - a.score)
+        .forEach((p, idx) => {
+          lb.innerHTML += `<div class="leaderboard-row"><span>#${idx + 1} ${p.name}</span><strong>${p.score} pts</strong></div>`;
+        });
+
+      const nextBtn = document.getElementById("btn-next-step");
+      nextBtn.classList.toggle("hidden", !isHost);
+      nextBtn.textContent = roomData.state === "GAMEOVER" ? "Back to Lobby" : "Next Matchup / Round";
+      nextBtn.onclick = () => advanceFromReveal(mKeys.length, modeCfg);
+    }
+  }
+
+  function loadMyNextPrompt() {
+    const form = document.getElementById("prompt-form");
+    const wait = document.getElementById("prompt-waiting");
+    if (myPromptIdx >= myPromptQueue.length) {
+      form.classList.add("hidden");
+      wait.classList.remove("hidden");
+      return;
+    }
+    form.classList.remove("hidden");
+    wait.classList.add("hidden");
+    const [mKey, mObj] = myPromptQueue[myPromptIdx];
+    document.getElementById("curr-prompt-text").textContent = mObj.prompt;
+    const inp = document.getElementById("inp-answer");
+    inp.value = "";
+
+    document.getElementById("btn-submit-answer").onclick = async () => {
+      const val = inp.value.trim() || "I panicked and wrote nothing";
+      const field = mObj.pA === myId ? "ansA" : "ansB";
+      await update(ref(db, `rooms/${currentRoom}/matchups/${mKey}`), { [field]: val });
+      myPromptIdx++;
+      loadMyNextPrompt();
+    };
+  }
+
+  async function startVotingPhase(idx) {
+    const modeCfg = GAME_MODES[roomData.mode];
+    await update(ref(db, `rooms/${currentRoom}`), {
+      state: "VOTE",
+      matchIndex: idx,
+      deadline: Date.now() + modeCfg.voteTime * 1000
+    });
+  }
+
+  async function scoreAndRevealMatchup(currKey, m, modeCfg) {
+    if (m.scored) return;
+    const votes = Object.values(m.votes || {});
+    const vA = votes.filter(v => v === "A").length;
+    const vB = votes.filter(v => v === "B").length;
+
+    const mult = roomData.round; // Round 1 = 1x, Round 2 = 2x, Round 3 = 3x points
+    let ptsA = vA * modeCfg.basePoints * mult + (vA > 0 && vB === 0 ? modeCfg.sweepBonus * mult : 0);
+    let ptsB = vB * modeCfg.basePoints * mult + (vB > 0 && vA === 0 ? modeCfg.sweepBonus * mult : 0);
+
+    const curScoreA = roomData.players[m.pA]?.score || 0;
+    const curScoreB = roomData.players[m.pB]?.score || 0;
+
+    await update(ref(db, `rooms/${currentRoom}`), {
+      state: "REVEAL",
+      deadline: 0,
+      [`matchups/${currKey}/scored`]: true,
+      [`players/${m.pA}/score`]: curScoreA + ptsA,
+      [`players/${m.pB}/score`]: curScoreB + ptsB
+    });
+  }
+
+  async function advanceFromReveal(totalMatchups, modeCfg) {
+    if (roomData.state === "GAMEOVER") {
+      await update(ref(db, `rooms/${currentRoom}`), { state: "LOBBY", deadline: 0 });
+      return;
+    }
+    if (roomData.matchIndex + 1 < totalMatchups) {
+      startVotingPhase(roomData.matchIndex + 1);
+    } else if (roomData.round < modeCfg.totalRounds) {
+      startRound(roomData.round + 1);
+    } else {
+      await update(ref(db, `rooms/${currentRoom}`), { state: "GAMEOVER", deadline: 0 });
+    }
+  }
+
+  function handleTimeout() {
+    const modeCfg = GAME_MODES[roomData.mode];
+    if (roomData.state === "PROMPT") {
+      startVotingPhase(0);
+    } else if (roomData.state === "VOTE") {
+      const mKeys = Object.keys(roomData.matchups || {});
+      const currKey = mKeys[roomData.matchIndex];
+      scoreAndRevealMatchup(currKey, roomData.matchups[currKey], modeCfg);
+    }
+  }
+</script>
+</body>
+</html>
