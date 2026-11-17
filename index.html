@@ -16,6 +16,7 @@
       --silver: #cbd5e1;
       --bronze: #d97706;
       --success: #10b981;
+      --danger: #ef4444;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
     body { background: var(--bg); color: var(--text); min-height: 100vh; display: flex; justify-content: center; padding: 14px; }
@@ -35,6 +36,7 @@
     }
     button:active { transform: scale(0.98); }
     button.secondary { background: #334155; }
+    button.danger-btn { background: #7f1d1d; border: 1px solid var(--danger); font-size: 0.85rem; padding: 10px; }
     button.vote-btn {
       background: #1e1b4b; border: 2px solid var(--accent); padding: 16px;
       font-size: 1.05rem; word-wrap: break-word; text-align: left; position: relative;
@@ -46,7 +48,8 @@
     .badge { background: var(--accent); padding: 4px 10px; border-radius: 999px; font-weight: 700; font-size: 0.8rem; }
     .timer { font-size: 1.2rem; font-weight: 800; color: #f43f5e; }
     .player-list { list-style: none; display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
-    .player-pill { background: #0f172a; padding: 8px 12px; border-radius: 8px; font-size: 0.9rem; border: 1px solid #334155; }
+    .player-pill { background: #0f172a; padding: 8px 12px; border-radius: 8px; font-size: 0.9rem; border: 1px solid #334155; display: flex; align-items: center; gap: 8px; }
+    .kick-x { color: var(--danger); cursor: pointer; font-weight: 900; font-size: 0.85rem; padding: 0 4px; }
     .leaderboard-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-bottom: 1px solid #334155; }
     .prompt-box { background: #0f172a; border-left: 4px solid var(--accent); padding: 14px; border-radius: 8px; margin-bottom: 14px; font-size: 1.1rem; font-weight: 600; line-height: 1.4; }
     .lash-tag { display: inline-block; background: #f43f5e; color: white; font-size: 0.75rem; font-weight: 800; padding: 3px 8px; border-radius: 6px; text-transform: uppercase; margin-bottom: 8px; }
@@ -55,6 +58,7 @@
     .voter-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
     .voter-chip { background: #334155; font-size: 0.75rem; padding: 2px 8px; border-radius: 99px; color: #e2e8f0; }
     .medal-pill { float: right; font-weight: 800; font-size: 0.85rem; padding: 2px 8px; border-radius: 6px; background: rgba(255,255,255,0.1); }
+    .host-bar { background: #1e293b; border: 1px dashed #475569; border-radius: 12px; padding: 12px; display: flex; gap: 8px; }
   </style>
 </head>
 <body>
@@ -74,7 +78,7 @@
     <input id="inp-code" type="text" placeholder="4-Letter Room Code (to join)" maxlength="4" style="text-transform:uppercase" />
     <button id="btn-join">Join Existing Room</button>
     <hr style="border: 0; border-top: 1px solid #334155; margin: 14px 0;" />
-    <label style="font-size:0.85rem; color:var(--muted); display:block; margin-bottom:6px;">Game Mode (Host):</label>
+    <label for="sel-mode" style="font-size:0.85rem; color:var(--muted); display:block; margin-bottom:6px;">Game Mode (Host):</label>
     <select id="sel-mode"></select>
     <button id="btn-create" class="secondary">Create New Room</button>
   </div>
@@ -125,11 +129,16 @@
     <div id="leaderboard-list"></div>
     <button id="btn-next-step" class="hidden" style="margin-top:16px;">Next</button>
   </div>
+
+  <!-- HOST EMERGENCY OVERRIDE BAR (Visible during active game to Host only) -->
+  <div id="host-override-bar" class="host-bar hidden">
+    <button id="btn-force-skip" class="danger-btn" style="margin:0;">⏩ Force Next Step (Skip AFK)</button>
+  </div>
 </div>
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js";
-  import { getDatabase, ref, set, get, update, onValue } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-database.js";
+  import { getDatabase, ref, set, get, update, remove, onValue } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-database.js";
 
   // ============================================================================
   // 1. YOUR FIREBASE CONFIG
@@ -349,10 +358,11 @@
   });
 
   // ============================================================================
-  // 3. LOCAL PLAYER & ROOM STATE
+  // 3. TAB-SAFE PLAYER ID & LOCAL ROOM STATE
   // ============================================================================
-  let myId = localStorage.getItem("quips_uid") || "p_" + Math.random().toString(36).substring(2, 9);
-  localStorage.setItem("quips_uid", myId);
+  // sessionStorage ensures opening 2 tabs on the same PC never shares the same player ID!
+  let myId = sessionStorage.getItem("quips_uid") || "p_" + Math.random().toString(36).substring(2, 9);
+  sessionStorage.setItem("quips_uid", myId);
 
   let currentRoom = null;
   let roomData = null;
@@ -361,6 +371,7 @@
   let myLastLashPicks = [];
   let timerInterval = null;
   let lastStateKey = "";
+  let hostTransitionLock = false; // Prevents double-triggers & double-scoring!
 
   const views = ["view-home", "view-lobby", "view-prompt", "view-vote", "view-reveal"];
   function showView(id) {
@@ -412,7 +423,7 @@
   };
 
   // ============================================================================
-  // 5. REALTIME STATE LISTENER
+  // 5. REALTIME STATE LISTENER & WAKE-UP CHECK
   // ============================================================================
   function subscribeToRoom(code) {
     currentRoom = code;
@@ -421,6 +432,14 @@
     onValue(ref(db, `rooms/${code}`), (snap) => {
       if (!snap.exists()) return;
       roomData = snap.val();
+
+      // If kicked from lobby, return home
+      if (!roomData.players || !roomData.players[myId]) {
+        alert("You were removed from the room.");
+        location.reload();
+        return;
+      }
+
       const modeCfg = GAME_MODES[roomData.mode] || GAME_MODES.full_quiplash;
       const isHost = roomData.host === myId;
       const isLastLash = modeCfg.hasLastLash && roomData.round === modeCfg.totalRounds;
@@ -432,97 +451,120 @@
           ? `R${roomData.round}: LAST LASH (3x)`
           : `Round ${roomData.round}/${modeCfg.totalRounds} (${roomData.round}x)`;
 
+      document.getElementById("host-override-bar").classList.toggle(
+        "hidden",
+        !isHost || (roomData.state !== "PROMPT" && roomData.state !== "VOTE")
+      );
+
       syncTimer(roomData.deadline, isHost);
       renderCurrentState(isHost, modeCfg, isLastLash);
     });
   }
+
+  // If Host switches back from Discord to the browser tab, immediately check expired timers
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && roomData && roomData.host === myId && roomData.deadline > 0) {
+      if (Date.now() >= roomData.deadline) handleTimeout();
+    }
+  });
 
   function syncTimer(deadline, isHost) {
     clearInterval(timerInterval);
     const el = document.getElementById("ui-timer");
     if (!deadline) { el.textContent = "--"; return; }
 
-    timerInterval = setInterval(() => {
+    const tick = () => {
       const rem = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
       el.textContent = rem + "s";
       if (rem <= 0) {
         clearInterval(timerInterval);
         if (isHost) handleTimeout();
       }
-    }, 300);
+    };
+    tick();
+    timerInterval = setInterval(tick, 300);
   }
 
+  // Host Force-Skip Button
+  document.getElementById("btn-force-skip").onclick = () => {
+    if (roomData && roomData.host === myId) handleTimeout();
+  };
+
   // ============================================================================
-  // 6. GAME LOOP & NO-REPEAT MATCHMAKING
+  // 6. GAME LOOP & DETERMINISTIC SCORE ENGINE
   // ============================================================================
   async function startRound(roundNum) {
-    const modeCfg = GAME_MODES[roomData.mode];
-    const isLastLash = modeCfg.hasLastLash && roundNum === modeCfg.totalRounds;
-    const pIds = Object.keys(roomData.players || {}).sort(() => Math.random() - 0.5);
-    const matchups = {};
+    if (hostTransitionLock) return;
+    hostTransitionLock = true;
+    try {
+      const modeCfg = GAME_MODES[roomData.mode];
+      const isLastLash = modeCfg.hasLastLash && roundNum === modeCfg.totalRounds;
+      const pIds = Object.keys(roomData.players || {}).sort(() => Math.random() - 0.5);
+      const matchups = {};
 
-    let updatedUsedPrompts = Array.isArray(roomData.usedPrompts) ? [...roomData.usedPrompts] : [];
-    let updatedUsedLastLash = Array.isArray(roomData.usedLastLash) ? [...roomData.usedLastLash] : [];
+      let updatedUsedPrompts = Array.isArray(roomData.usedPrompts) ? [...roomData.usedPrompts] : [];
+      let updatedUsedLastLash = Array.isArray(roomData.usedLastLash) ? [...roomData.usedLastLash] : [];
 
-    if (isLastLash) {
-      // ROUND 3: Pick an unseen Last Lash prompt
-      let lashPool = modeCfg.lastLashPrompts.filter(item => !updatedUsedLastLash.includes(item.text));
-      if (lashPool.length === 0) {
-        lashPool = [...modeCfg.lastLashPrompts];
-        updatedUsedLastLash = [];
-      }
-      const chosen = lashPool[Math.floor(Math.random() * lashPool.length)];
-      updatedUsedLastLash.push(chosen.text);
+      if (isLastLash) {
+        let lashPool = modeCfg.lastLashPrompts.filter(item => !updatedUsedLastLash.includes(item.text));
+        if (lashPool.length === 0) {
+          lashPool = [...modeCfg.lastLashPrompts];
+          updatedUsedLastLash = [];
+        }
+        const chosen = lashPool[Math.floor(Math.random() * lashPool.length)];
+        updatedUsedLastLash.push(chosen.text);
 
-      matchups["m_0"] = {
-        isLastLash: true,
-        lashType: chosen.type,
-        prompt: chosen.text,
-        answers: {},
-        votes: {}
-      };
-    } else {
-      // ROUNDS 1 & 2: Filter out already-used prompts so players never see repeats
-      const customRaw = document.getElementById("inp-custom-prompts").value.trim();
-      const customList = customRaw ? customRaw.split("\n").map(s => s.trim()).filter(Boolean) : [];
-      const fullDeck = [...modeCfg.prompts, ...customList];
-
-      let availablePool = fullDeck.filter(p => !updatedUsedPrompts.includes(p)).sort(() => Math.random() - 0.5);
-      if (availablePool.length < pIds.length) {
-        // Reshuffle deck if we finally ran through all 100+ prompts
-        availablePool = [...fullDeck].sort(() => Math.random() - 0.5);
-        updatedUsedPrompts = [];
-      }
-
-      pIds.forEach((pA, i) => {
-        const pB = pIds[(i + 1) % pIds.length];
-        const chosenPrompt = availablePool[i % availablePool.length];
-        updatedUsedPrompts.push(chosenPrompt);
-        matchups[`m_${i}`] = {
-          isLastLash: false,
-          prompt: chosenPrompt,
-          pA, pB,
-          ansA: "", ansB: "",
+        matchups["m_0"] = {
+          isLastLash: true,
+          lashType: chosen.type,
+          prompt: chosen.text,
+          answers: {},
           votes: {}
         };
-      });
+      } else {
+        const customRaw = document.getElementById("inp-custom-prompts").value.trim();
+        const customList = customRaw ? customRaw.split("\n").map(s => s.trim()).filter(Boolean) : [];
+        const fullDeck = [...modeCfg.prompts, ...customList];
+
+        let availablePool = fullDeck.filter(p => !updatedUsedPrompts.includes(p)).sort(() => Math.random() - 0.5);
+        if (availablePool.length < pIds.length) {
+          availablePool = [...fullDeck].sort(() => Math.random() - 0.5);
+          updatedUsedPrompts = [];
+        }
+
+        pIds.forEach((pA, i) => {
+          const pB = pIds[(i + 1) % pIds.length];
+          const chosenPrompt = availablePool[i % availablePool.length];
+          updatedUsedPrompts.push(chosenPrompt);
+          matchups[`m_${i}`] = {
+            isLastLash: false,
+            prompt: chosenPrompt,
+            pA, pB,
+            ansA: "", ansB: "",
+            votes: {}
+          };
+        });
+      }
+
+      const updates = {
+        state: "PROMPT",
+        round: roundNum,
+        matchIndex: 0,
+        matchups,
+        usedPrompts: updatedUsedPrompts,
+        usedLastLash: updatedUsedLastLash,
+        deadline: Date.now() + modeCfg.promptTime * 1000
+      };
+
+      if (roundNum === 1) {
+        updates.roundHistory = {};
+        pIds.forEach(id => { updates[`players/${id}/score`] = 0; });
+      }
+
+      await update(ref(db, `rooms/${currentRoom}`), updates);
+    } finally {
+      setTimeout(() => { hostTransitionLock = false; }, 400);
     }
-
-    const updates = {
-      state: "PROMPT",
-      round: roundNum,
-      matchIndex: 0,
-      matchups,
-      usedPrompts: updatedUsedPrompts,
-      usedLastLash: updatedUsedLastLash,
-      deadline: Date.now() + modeCfg.promptTime * 1000
-    };
-
-    if (roundNum === 1) {
-      pIds.forEach(id => { updates[`players/${id}/score`] = 0; });
-    }
-
-    await update(ref(db, `rooms/${currentRoom}`), updates);
   }
 
   document.getElementById("btn-start").onclick = () => {
@@ -531,22 +573,64 @@
     startRound(1);
   };
 
+  // Pure function to compute exact points for a single matchup (Zero Race Conditions!)
+  function getMatchupPoints(m, roundNum, modeCfg) {
+    const pts = {};
+    if (!m) return pts;
+
+    if (m.isLastLash) {
+      const medalWeights = [300, 200, 100];
+      Object.values(m.votes || {}).forEach(picks => {
+        (picks || []).forEach((targetId, idx) => {
+          pts[targetId] = (pts[targetId] || 0) + (medalWeights[idx] || 100);
+        });
+      });
+    } else {
+      const mult = roundNum;
+      let ptsA = 0, ptsB = 0;
+      if (m.ansA && !m.ansB) {
+        ptsA = modeCfg.basePoints * 2 * mult;
+      } else if (m.ansB && !m.ansA) {
+        ptsB = modeCfg.basePoints * 2 * mult;
+      } else if (m.ansA && m.ansB) {
+        const votes = Object.values(m.votes || {});
+        const vA = votes.filter(v => v === "A").length;
+        const vB = votes.filter(v => v === "B").length;
+        const hasSweep = (vA + vB >= 2);
+        ptsA = vA * modeCfg.basePoints * mult + (hasSweep && vA > 0 && vB === 0 ? modeCfg.sweepBonus * mult : 0);
+        ptsB = vB * modeCfg.basePoints * mult + (hasSweep && vB > 0 && vA === 0 ? modeCfg.sweepBonus * mult : 0);
+      }
+      pts[m.pA] = (pts[m.pA] || 0) + ptsA;
+      pts[m.pB] = (pts[m.pB] || 0) + ptsB;
+    }
+    return pts;
+  }
+
   // ============================================================================
   // 7. VIEW RENDERING & INTERACTION
   // ============================================================================
   function renderCurrentState(isHost, modeCfg, isLastLash) {
     const stateKey = `${roomData.state}_${roomData.round}_${roomData.matchIndex}`;
-    const totalPlayers = Object.keys(roomData.players || {}).length;
+    const playerEntries = Object.entries(roomData.players || {});
+    const totalPlayers = playerEntries.length;
 
     // --- LOBBY ---
     if (roomData.state === "LOBBY") {
       showView("view-lobby");
       const ul = document.getElementById("lobby-players");
       ul.innerHTML = "";
-      Object.values(roomData.players || {}).forEach(p => {
+      playerEntries.forEach(([pid, p]) => {
         const li = document.createElement("li");
         li.className = "player-pill";
-        li.textContent = p.name;
+        li.innerHTML = `<span>${p.name}</span>`;
+        if (isHost && pid !== myId) {
+          const kickBtn = document.createElement("span");
+          kickBtn.className = "kick-x";
+          kickBtn.title = "Remove player";
+          kickBtn.textContent = "✕";
+          kickBtn.onclick = () => remove(ref(db, `rooms/${currentRoom}/players/${pid}`));
+          li.appendChild(kickBtn);
+        }
         ul.appendChild(li);
       });
       document.getElementById("host-lobby-controls").classList.toggle("hidden", !isHost);
@@ -556,7 +640,7 @@
     // --- PROMPT ANSWERING ---
     else if (roomData.state === "PROMPT") {
       showView("view-prompt");
-      const mList = Object.entries(roomData.matchups || {});
+      const mList = Object.entries(roomData.matchups || {}).sort((a, b) => a[0].localeCompare(b[0]));
 
       document.getElementById("prompt-header-title").textContent =
         isLastLash ? "⚡ THE LAST LASH ⚡" : `Round ${roomData.round}: Write Your Quips`;
@@ -577,9 +661,8 @@
         loadMyNextPrompt();
       }
 
-      let doneCount = 0;
       if (isLastLash) {
-        doneCount = Object.keys(roomData.matchups["m_0"].answers || {}).length;
+        const doneCount = Object.keys(roomData.matchups["m_0"].answers || {}).length;
         document.getElementById("prompt-progress").textContent = `${doneCount} / ${totalPlayers} players ready`;
         if (isHost && doneCount >= totalPlayers) startVotingPhase(0);
       } else {
@@ -592,8 +675,8 @@
     // --- VOTING PHASE ---
     else if (roomData.state === "VOTE") {
       showView("view-vote");
-      const mKeys = Object.keys(roomData.matchups || {});
-      const currKey = mKeys[roomData.matchIndex];
+      const mKeys = Object.keys(roomData.matchups || {}).sort();
+      const currKey = mKeys[roomData.matchIndex] || mKeys[0];
       const m = roomData.matchups[currKey];
       const btnContainer = document.getElementById("vote-buttons");
       const status = document.getElementById("vote-status");
@@ -601,7 +684,10 @@
       document.getElementById("vote-prompt-text").textContent = m.prompt;
 
       if (m.isLastLash) {
-        const maxPicks = Math.min(3, Math.max(1, totalPlayers - 1));
+        const allAnswers = Object.entries(m.answers || {});
+        const otherAnswers = allAnswers.filter(([aid]) => aid !== myId);
+        const maxPicks = Math.min(3, otherAnswers.length);
+
         document.getElementById("vote-title").textContent = "Last Lash Voting!";
         document.getElementById("vote-sub").textContent = `Tap your Top ${maxPicks} favorite answers in order (🥇 Gold, 🥈 Silver, 🥉 Bronze)!`;
 
@@ -611,14 +697,13 @@
         }
 
         const mySubmittedVotes = m.votes?.[myId];
-        const canVote = !mySubmittedVotes;
+        const canVote = !mySubmittedVotes && maxPicks > 0;
         btnContainer.classList.toggle("hidden", !canVote);
         status.classList.toggle("hidden", canVote);
 
         if (canVote) {
           btnContainer.innerHTML = "";
-          Object.entries(m.answers || {}).forEach(([authorId, ansText]) => {
-            if (authorId === myId) return;
+          otherAnswers.forEach(([authorId, ansText]) => {
             const btn = document.createElement("button");
             btn.className = "vote-btn";
             const pickIdx = myLastLashPicks.indexOf(authorId);
@@ -642,9 +727,9 @@
           status.textContent = `Medals locked in! (${votedCount} / ${totalPlayers} players voted)`;
         }
 
-        if (isHost) {
+        if (isHost && !m.scored) {
           const currentVotes = Object.keys(m.votes || {}).length;
-          if (currentVotes >= totalPlayers) scoreAndRevealMatchup(currKey, m, modeCfg);
+          if (currentVotes >= totalPlayers) scoreAndRevealMatchup(roomData.matchIndex, currKey, m, modeCfg);
         }
       } else {
         document.getElementById("vote-title").textContent = "Vote Your Favorite!";
@@ -674,16 +759,16 @@
           btnContainer.appendChild(btnB);
         } else {
           const votedCount = Object.keys(m.votes || {}).length;
-          const eligible = totalPlayers - 2;
+          const eligible = Math.max(1, totalPlayers - 2);
           status.textContent = isCompetitor
             ? `This is your matchup! Sit tight (${votedCount}/${eligible} voted)`
             : `Vote locked in! (${votedCount}/${eligible} voted)`;
         }
 
-        if (isHost) {
-          const eligibleVoters = totalPlayers - 2;
+        if (isHost && !m.scored) {
+          const eligibleVoters = Math.max(1, totalPlayers - 2);
           const currentVotes = Object.keys(m.votes || {}).length;
-          if (currentVotes >= eligibleVoters) scoreAndRevealMatchup(currKey, m, modeCfg);
+          if (currentVotes >= eligibleVoters) scoreAndRevealMatchup(roomData.matchIndex, currKey, m, modeCfg);
         }
       }
     }
@@ -691,41 +776,38 @@
     // --- REVEAL & LEADERBOARD ---
     else if (roomData.state === "REVEAL" || roomData.state === "GAMEOVER") {
       showView("view-reveal");
-      const mKeys = Object.keys(roomData.matchups || {});
-      const m = roomData.matchups[mKeys[roomData.matchIndex]];
+      const mKeys = Object.keys(roomData.matchups || {}).sort();
+      const currKey = mKeys[roomData.matchIndex] || mKeys[0];
+      const m = roomData.matchups?.[currKey];
 
       document.getElementById("reveal-title").textContent =
-        roomData.state === "GAMEOVER" ? "🏆 FINAL WINNER 🏆" : "Matchup Results";
+        roomData.state === "GAMEOVER" ? "🏆 FINAL WINNER 🏆" : `Matchup ${roomData.matchIndex + 1} of ${mKeys.length} Results`;
       document.getElementById("reveal-prompt-text").textContent =
-        roomData.state === "GAMEOVER" ? "Game Over! Check the final standings below:" : m.prompt;
+        roomData.state === "GAMEOVER" ? "Game Over! Check the final standings below:" : (m?.prompt || "");
 
       const resDiv = document.getElementById("reveal-results");
       resDiv.innerHTML = "";
 
-      if (roomData.state !== "GAMEOVER") {
-        if (m.isLastLash) {
-          const ptsBreakdown = {};
-          const voterBadges = {};
-          Object.keys(roomData.players || {}).forEach(pid => { ptsBreakdown[pid] = 0; voterBadges[pid] = []; });
+      if (roomData.state !== "GAMEOVER" && m) {
+        const earnedMap = getMatchupPoints(m, roomData.round, modeCfg);
 
-          const medalWeights = [300, 200, 100];
+        if (m.isLastLash) {
+          const voterBadges = {};
+          Object.keys(roomData.players || {}).forEach(pid => { voterBadges[pid] = []; });
           const medalIcons = ["🥇", "🥈", "🥉"];
 
           Object.entries(m.votes || {}).forEach(([voterId, picks]) => {
             const voterName = roomData.players[voterId]?.name || "Voter";
             (picks || []).forEach((targetId, idx) => {
-              if (ptsBreakdown[targetId] !== undefined) {
-                ptsBreakdown[targetId] += (medalWeights[idx] || 100);
-                voterBadges[targetId].push(`${medalIcons[idx]} ${voterName}`);
-              }
+              if (voterBadges[targetId]) voterBadges[targetId].push(`${medalIcons[idx]} ${voterName}`);
             });
           });
 
           Object.entries(m.answers || {})
-            .sort((a, b) => (ptsBreakdown[b[0]] || 0) - (ptsBreakdown[a[0]] || 0))
+            .sort((a, b) => (earnedMap[b[0]] || 0) - (earnedMap[a[0]] || 0))
             .forEach(([pid, ansText]) => {
               const pName = roomData.players[pid]?.name || "Player";
-              const earned = ptsBreakdown[pid] || 0;
+              const earned = earnedMap[pid] || 0;
               const chips = (voterBadges[pid] || []).map(b => `<span class="voter-chip">${b}</span>`).join("");
               resDiv.innerHTML += `
                 <div class="result-card">
@@ -744,17 +826,20 @@
 
           const nameA = roomData.players[m.pA]?.name || "Player A";
           const nameB = roomData.players[m.pB]?.name || "Player B";
+          const ptsA = earnedMap[m.pA] || 0;
+          const ptsB = earnedMap[m.pB] || 0;
+
           const sweepA = vA > 0 && vB === 0 && (vA + vB >= 2) ? `<span class="quips-sweep">⚡ QUIPLASH SWEEP! (+${modeCfg.sweepBonus * mult} BONUS)</span>` : "";
           const sweepB = vB > 0 && vA === 0 && (vA + vB >= 2) ? `<span class="quips-sweep">⚡ QUIPLASH SWEEP! (+${modeCfg.sweepBonus * mult} BONUS)</span>` : "";
 
           resDiv.innerHTML = `
             <div class="result-card">
-              <strong>"${m.ansA || "(Forfeit - No Answer)"}"</strong> — <em>${nameA}</em> (${vA} votes)
+              <strong>"${m.ansA || "(Forfeit - No Answer)"}"</strong> — <em>${nameA}</em> <span style="color:var(--gold);">+${ptsA} pts</span> (${vA} votes)
               <div class="voter-chips">${votersA.map(n => `<span class="voter-chip">${n}</span>`).join("")}</div>
               ${sweepA}
             </div>
             <div class="result-card">
-              <strong>"${m.ansB || "(Forfeit - No Answer)"}"</strong> — <em>${nameB}</em> (${vB} votes)
+              <strong>"${m.ansB || "(Forfeit - No Answer)"}"</strong> — <em>${nameB}</em> <span style="color:var(--gold);">+${ptsB} pts</span> (${vB} votes)
               <div class="voter-chips">${votersB.map(n => `<span class="voter-chip">${n}</span>`).join("")}</div>
               ${sweepB}
             </div>
@@ -820,82 +905,87 @@
   }
 
   async function startVotingPhase(idx) {
+    if (hostTransitionLock) return;
     const modeCfg = GAME_MODES[roomData.mode];
-    const mKeys = Object.keys(roomData.matchups || {});
+    const mKeys = Object.keys(roomData.matchups || {}).sort();
     const currKey = mKeys[idx];
-    const m = roomData.matchups[currKey];
+    const m = roomData.matchups?.[currKey];
+    if (!m) return;
 
+    // If a 1v1 matchup has a forfeit (blank answer), auto-score AND update matchIndex!
     if (!m.isLastLash && (!m.ansA || !m.ansB)) {
-      await scoreAndRevealMatchup(currKey, m, modeCfg);
+      await scoreAndRevealMatchup(idx, currKey, m, modeCfg);
       return;
     }
 
-    await update(ref(db, `rooms/${currentRoom}`), {
-      state: "VOTE",
-      matchIndex: idx,
-      deadline: Date.now() + modeCfg.voteTime * 1000
-    });
+    hostTransitionLock = true;
+    try {
+      await update(ref(db, `rooms/${currentRoom}`), {
+        state: "VOTE",
+        matchIndex: idx,
+        deadline: Date.now() + modeCfg.voteTime * 1000
+      });
+    } finally {
+      setTimeout(() => { hostTransitionLock = false; }, 400);
+    }
   }
 
-  async function scoreAndRevealMatchup(currKey, m, modeCfg) {
-    if (m.scored) return;
-    const updates = {
-      state: "REVEAL",
-      deadline: 0,
-      [`matchups/${currKey}/scored`]: true
-    };
+  // Deterministic Score Calculation: Computes exact score from roundHistory + current matchups
+  async function scoreAndRevealMatchup(idx, currKey, m, modeCfg) {
+    if (m.scored || hostTransitionLock) return;
+    hostTransitionLock = true;
 
-    if (m.isLastLash) {
-      const ptsAdded = {};
-      const medalWeights = [300, 200, 100];
-      Object.values(m.votes || {}).forEach(picks => {
-        (picks || []).forEach((targetId, idx) => {
-          ptsAdded[targetId] = (ptsAdded[targetId] || 0) + (medalWeights[idx] || 100);
+    try {
+      const earnedThisMatch = getMatchupPoints(m, roomData.round, modeCfg);
+      const updates = {
+        state: "REVEAL",
+        matchIndex: idx, // Ensures matchIndex is ALWAYS synced even on forfeits!
+        deadline: 0,
+        [`matchups/${currKey}/scored`]: true,
+        [`roundHistory/r${roomData.round}_${currKey}`]: earnedThisMatch
+      };
+
+      // Sum all recorded matchup points across the entire game so double-scoring is impossible
+      const fullHistory = {
+        ...(roomData.roundHistory || {}),
+        [`r${roomData.round}_${currKey}`]: earnedThisMatch
+      };
+
+      const totals = {};
+      Object.keys(roomData.players || {}).forEach(pid => { totals[pid] = 0; });
+      Object.values(fullHistory).forEach(matchPts => {
+        Object.entries(matchPts || {}).forEach(([pid, pts]) => {
+          if (totals[pid] !== undefined) totals[pid] += pts;
         });
       });
-      Object.entries(ptsAdded).forEach(([pid, added]) => {
-        const cur = roomData.players[pid]?.score || 0;
-        updates[`players/${pid}/score`] = cur + added;
+
+      Object.entries(totals).forEach(([pid, totalScore]) => {
+        updates[`players/${pid}/score`] = totalScore;
       });
-    } else {
-      const mult = roomData.round;
-      let ptsA = 0, ptsB = 0;
 
-      if (m.ansA && !m.ansB) {
-        ptsA = modeCfg.basePoints * 2 * mult;
-      } else if (m.ansB && !m.ansA) {
-        ptsB = modeCfg.basePoints * 2 * mult;
-      } else {
-        const votes = Object.values(m.votes || {});
-        const vA = votes.filter(v => v === "A").length;
-        const vB = votes.filter(v => v === "B").length;
-        const hasSweep = (vA + vB >= 2);
-        ptsA = vA * modeCfg.basePoints * mult + (hasSweep && vA > 0 && vB === 0 ? modeCfg.sweepBonus * mult : 0);
-        ptsB = vB * modeCfg.basePoints * mult + (hasSweep && vB > 0 && vA === 0 ? modeCfg.sweepBonus * mult : 0);
-      }
-
-      updates[`players/${m.pA}/score`] = (roomData.players[m.pA]?.score || 0) + ptsA;
-      updates[`players/${m.pB}/score`] = (roomData.players[m.pB]?.score || 0) + ptsB;
+      await update(ref(db, `rooms/${currentRoom}`), updates);
+    } finally {
+      setTimeout(() => { hostTransitionLock = false; }, 400);
     }
-
-    await update(ref(db, `rooms/${currentRoom}`), updates);
   }
 
   async function advanceFromReveal(totalMatchups, modeCfg) {
+    if (hostTransitionLock) return;
     if (roomData.state === "GAMEOVER") {
       await update(ref(db, `rooms/${currentRoom}`), { state: "LOBBY", deadline: 0 });
       return;
     }
     if (roomData.matchIndex + 1 < totalMatchups) {
-      startVotingPhase(roomData.matchIndex + 1);
+      await startVotingPhase(roomData.matchIndex + 1);
     } else if (roomData.round < modeCfg.totalRounds) {
-      startRound(roomData.round + 1);
+      await startRound(roomData.round + 1);
     } else {
       await update(ref(db, `rooms/${currentRoom}`), { state: "GAMEOVER", deadline: 0 });
     }
   }
 
   async function handleTimeout() {
+    if (hostTransitionLock) return;
     const modeCfg = GAME_MODES[roomData.mode];
     if (roomData.state === "PROMPT") {
       const m0 = roomData.matchups?.["m_0"];
@@ -906,11 +996,12 @@
         });
         if (Object.keys(updates).length > 0) await update(ref(db, `rooms/${currentRoom}`), updates);
       }
-      startVotingPhase(0);
+      await startVotingPhase(0);
     } else if (roomData.state === "VOTE") {
-      const mKeys = Object.keys(roomData.matchups || {});
-      const currKey = mKeys[roomData.matchIndex];
-      scoreAndRevealMatchup(currKey, roomData.matchups[currKey], modeCfg);
+      const mKeys = Object.keys(roomData.matchups || {}).sort();
+      const idx = roomData.matchIndex;
+      const currKey = mKeys[idx];
+      await scoreAndRevealMatchup(idx, currKey, roomData.matchups[currKey], modeCfg);
     }
   }
 </script>
